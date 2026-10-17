@@ -8,6 +8,8 @@
 |---|---|---|---|---|
 | GAT562 Mesh Tracker Max（摇杆版，简体中文） | `gat562_family_cn` | 2.8.1.8e6a88d | `gat562-max/2.8.1.8` | `gat562-max-v2.8.1.8` |
 
+Release 下载：[github.com/splendidmata/meshtastic_fw_myself/releases](https://github.com/splendidmata/meshtastic_fw_myself/releases)
+
 ## 命名规范
 
 - 分支：`<设备>/<Meshtastic版本>`，例如 `gat562-max/2.8.1.8`
