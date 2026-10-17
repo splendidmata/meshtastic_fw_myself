@@ -7,6 +7,7 @@
 | 设备 | 编译环境 | Meshtastic 版本 | 分支 | Release |
 |---|---|---|---|---|
 | GAT562 Mesh Tracker Max（摇杆版，简体中文） | `gat562_family_cn` | 2.8.1.8e6a88d | `gat562-max/2.8.1.8` | `gat562-max-v2.8.1.8` |
+| SakuraPi Pocket Namiji（ESP32-C3） | `sakurapi-namiji` | 2.8.1.8e6a88d | `sakurapi-namiji/2.8.1.8` | `sakurapi-namiji-v2.8.1.8` |
 
 Release 下载：[github.com/splendidmata/meshtastic_fw_myself/releases](https://github.com/splendidmata/meshtastic_fw_myself/releases)
 
@@ -39,6 +40,32 @@ Release 下载：[github.com/splendidmata/meshtastic_fw_myself/releases](https:/
 - 资源占用：RAM 97,620 / 248,832；Flash 671,468 / 815,104
 - 已在真机验证：刷机、启动、版本号、配置保留、电源/环境遥测、GPS 定位
 - 注意：主频道位置精度为 0 时不会写入/广播经纬度，需要在 App 或 CLI 中开启位置共享
+
+## SakuraPi Pocket Namiji 2.8.1.8e6a88d
+
+- 上游基线：`meshtastic/firmware` 标签 `v2.8.1.8e6a88d`
+- 厂商支持：`splendidmata/meshtastic_fw`（ssp97 的 ESP32-C3 适配与低功耗补丁）
+- 编译环境：`sakurapi-namiji`
+- 硬件型号：`SAKURAPI_NAMIJI = 254`
+- 关键配置：SX1268（E22-400M33S）、GPS RX/TX = GPIO3/4、电池 ADC = GPIO1、I2C SDA/SCL = GPIO2/0
+- 低功耗：启用 modem sleep，CPU 80MHz，BLE 广播间隔 500–1000ms
+- 资源占用：RAM 110,056 / 327,680；Flash 2,189,109 / 4,194,304
+- 已在真机验证：刷机、启动、版本号、BLE、WiFi、LoRa 收发、GPS 模块通信与 NMEA 授时
+- 注意：室内通常搜不到卫星（`Sats=0`），定位需在窗边或室外冷启动 1–3 分钟
+
+### 刷机（ESP32-C3）
+
+完整镜像从 `0x0` 写入：
+
+```bash
+python -m esptool --chip esp32c3 -p COMx -b 460800 write_flash 0x0 firmware-sakurapi-namiji-2.8.1.8e6a88d.factory.bin
+```
+
+或在源码分支目录内直接：
+
+```bash
+python -m platformio run -e sakurapi-namiji -t upload
+```
 
 ## 重新编译
 
