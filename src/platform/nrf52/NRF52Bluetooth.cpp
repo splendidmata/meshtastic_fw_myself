@@ -6,6 +6,7 @@
 #include "SPILock.h"
 #include "configuration.h"
 #include "error.h"
+#include "graphics/ui_translate.h"
 #if defined(GAT562)
 #include "graphics/GAT562Identity.h"
 #endif
@@ -486,11 +487,11 @@ bool NRF52Bluetooth::onPairingPasskey(uint16_t conn_handle, uint8_t const passke
             int yOffset = display->height() <= 80 ? 0 : 12;
             display->setTextAlignment(TEXT_ALIGN_CENTER);
             display->setFont(FONT_MEDIUM);
-            display->drawString(xOffset + x, yOffset + y, "Bluetooth");
+            display->drawString(xOffset + x, yOffset + y, uiTr("Bluetooth"));
 
             display->setFont(FONT_SMALL);
             yOffset = display->height() == 64 ? yOffset + FONT_HEIGHT_MEDIUM - 4 : yOffset + FONT_HEIGHT_MEDIUM + 5;
-            display->drawString(xOffset + x, yOffset + y, "Enter this code");
+            display->drawString(xOffset + x, yOffset + y, uiTr("Enter this code"));
 
             display->setFont(FONT_LARGE);
             String displayPin(btPIN);
@@ -499,7 +500,7 @@ bool NRF52Bluetooth::onPairingPasskey(uint16_t conn_handle, uint8_t const passke
             display->drawString(xOffset + x, yOffset + y, pin);
 
             display->setFont(FONT_SMALL);
-            String deviceName = "Name: ";
+            String deviceName = uiTr("Name: ");
             deviceName.concat(graphics::getGAT562BleName());
             yOffset = display->height() == 64 ? yOffset + FONT_HEIGHT_LARGE - 6 : yOffset + FONT_HEIGHT_LARGE + 5;
             display->drawString(xOffset + x, yOffset + y, deviceName);

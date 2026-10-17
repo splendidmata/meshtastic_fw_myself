@@ -12,6 +12,7 @@
 #include "graphics/SharedUIDisplay.h"
 #include "graphics/TFTColorRegions.h"
 #include "graphics/TFTPalette.h"
+#include "graphics/ui_translate.h"
 #include "graphics/TimeFormatters.h"
 #include "graphics/images.h"
 #include "main.h"
@@ -64,9 +65,9 @@ void drawFrameWiFi(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, i
     const char *wifiName = config.network.wifi_ssid;
 
     if (WiFi.status() != WL_CONNECTED) {
-        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "WiFi: Not Connected");
+        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, uiTr("WiFi: Not Connected"));
     } else {
-        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "WiFi: Connected");
+        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, uiTr("WiFi: Connected"));
 
         char rssiStr[32];
         snprintf(rssiStr, sizeof(rssiStr), "RSSI: %d", WiFi.RSSI());
@@ -90,13 +91,14 @@ void drawFrameWiFi(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, i
         snprintf(ipStr, sizeof(ipStr), "IP: %s", WiFi.localIP().toString().c_str());
         display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, ipStr);
     } else if (WiFi.status() == WL_NO_SSID_AVAIL) {
-        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "SSID Not Found");
+        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, uiTr("SSID Not Found"));
     } else if (WiFi.status() == WL_CONNECTION_LOST) {
-        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "Connection Lost");
+        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, uiTr("Connection Lost"));
     } else if (WiFi.status() == WL_IDLE_STATUS) {
-        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "Idle ... Reconnecting");
+        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y,
+                            uiTr("Idle ... Reconnecting"));
     } else if (WiFi.status() == WL_CONNECT_FAILED) {
-        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "Connection Failed");
+        display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, uiTr("Connection Failed"));
     }
 #ifdef ARCH_ESP32
     else {
@@ -141,7 +143,7 @@ void drawLoRaFocused(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x,
     int line = 1;
 
     // === Set Title
-    const char *titleStr = (currentResolution == ScreenResolution::High) ? "LoRa Info" : "LoRa";
+    const char *titleStr = (currentResolution == ScreenResolution::High) ? uiTr("LoRa Info") : uiTr("LoRa");
 
     // === Header ===
     graphics::drawCommonHeader(display, x, y, titleStr);
@@ -167,8 +169,8 @@ void drawLoRaFocused(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x,
     if (!graphics::isCompactPanel(display)) {
         // === Second Row: Role ===
         auto role = DisplayFormatters::getDeviceRole(config.device.role);
-        char device_role[25];
-        snprintf(device_role, sizeof(device_role), "Role: %s", role);
+        char device_role[48];
+        snprintf(device_role, sizeof(device_role), uiTr("Role: %s"), uiTr(role));
         textWidth = display->getStringWidth(device_role);
         nameX = (SCREEN_WIDTH - textWidth) / 2;
         display->drawString(nameX, getTextPositions(display)[line++] + y, device_role);
@@ -216,13 +218,13 @@ void drawLoRaFocused(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x,
         if (currentResolution == ScreenResolution::UltraLow) {
             snprintf(frequencyslot, sizeof(frequencyslot), "%sMHz", freqStr);
         } else {
-            snprintf(frequencyslot, sizeof(frequencyslot), "Freq: %sMHz", freqStr);
+            snprintf(frequencyslot, sizeof(frequencyslot), uiTr("Freq: %sMHz"), freqStr);
         }
     } else {
         if (currentResolution == ScreenResolution::UltraLow) {
             snprintf(frequencyslot, sizeof(frequencyslot), "%sMHz (%d)", freqStr, config.lora.channel_num);
         } else {
-            snprintf(frequencyslot, sizeof(frequencyslot), "Freq: %sMHz (%d)", freqStr, config.lora.channel_num);
+            snprintf(frequencyslot, sizeof(frequencyslot), uiTr("Freq: %sMHz (%d)"), freqStr, config.lora.channel_num);
         }
     }
     size_t len = strlen(frequencyslot);
@@ -236,12 +238,12 @@ void drawLoRaFocused(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x,
 #if !defined(OLED_TINY)
     // === Fifth Row: Channel Utilization ===
     if (!config.lora.tx_enabled) {
-        const char *txdisabled = "Transmit Disabled";
+        const char *txdisabled = uiTr("Transmit Disabled");
         textWidth = display->getStringWidth(txdisabled);
         display->drawString((SCREEN_WIDTH - textWidth) / 2, getTextPositions(display)[line] + y, txdisabled);
     } else {
 
-        const char *chUtil = "ChUtil:";
+        const char *chUtil = uiTr("ChUtil:");
         char chUtilPercentage[10];
         snprintf(chUtilPercentage, sizeof(chUtilPercentage), "%2.0f%%", airTime->channelUtilizationPercent());
 
@@ -325,7 +327,7 @@ void drawSystemScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x
     display->setTextAlignment(TEXT_ALIGN_LEFT);
 
     // === Set Title
-    const char *titleStr = "System";
+    const char *titleStr = uiTr("System");
 
     // === Header ===
     graphics::drawCommonHeader(display, x, y, titleStr);
@@ -429,22 +431,22 @@ void drawSystemScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x
     #endif
     */
     // === Draw memory rows
-    drawUsageRow("Heap:", heapUsed, heapTotal, true);
+    drawUsageRow(uiTr("Heap:"), heapUsed, heapTotal, true);
 #ifdef ESP32
 #ifndef T5_S3_EPAPER_PRO
     if (psramUsed > 0) {
         line += 1;
-        drawUsageRow("PSRAM:", psramUsed, psramTotal);
+        drawUsageRow(uiTr("PSRAM:"), psramUsed, psramTotal);
     }
 #endif
     if (flashTotal > 0) {
         line += 1;
-        drawUsageRow("Flash:", flashUsed, flashTotal);
+        drawUsageRow(uiTr("Flash:"), flashUsed, flashTotal);
     }
 #endif
     if (hasSD && sdTotal > 0) {
         line += 1;
-        drawUsageRow("SD:", sdUsed, sdTotal);
+        drawUsageRow(uiTr("SD:"), sdUsed, sdTotal);
     }
 
 #if defined(GAT562)
@@ -460,25 +462,25 @@ void drawSystemScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x
     }
     display->drawString((SCREEN_WIDTH - display->getStringWidth(rssiSnrStr)) / 2, getTextPositions(display)[line++], rssiSnrStr);
 
-    char uptimeStr[16] = "";
+    char uptimeStr[32] = "";
     getUptimeStr(millis(), "", uptimeStr, sizeof(uptimeStr));
-    char verStr[36];
-    snprintf(verStr, sizeof(verStr), "Uptime:%s Ver:%s", uptimeStr, xstr(APP_VERSION_SHORT));
+    char verStr[64];
+    snprintf(verStr, sizeof(verStr), uiTr("Uptime:%s Ver:%s"), uptimeStr, xstr(APP_VERSION_SHORT));
     display->drawString((SCREEN_WIDTH - display->getStringWidth(verStr)) / 2, getTextPositions(display)[line++], verStr);
 
-    const char *apiState = "No Apps Connected";
+    const char *apiState = uiTr("No Apps Connected");
     if (service->api_state == service->STATE_BLE)
-        apiState = "App Connected (BLE)";
+        apiState = uiTr("App Connected (BLE)");
     else if (service->api_state == service->STATE_WIFI)
-        apiState = "App Connected (WiFi)";
+        apiState = uiTr("App Connected (WiFi)");
     else if (service->api_state == service->STATE_SERIAL)
-        apiState = "App Connected (Serial)";
+        apiState = uiTr("App Connected (Serial)");
     else if (service->api_state == service->STATE_PACKET)
-        apiState = "App Connected (Internal)";
+        apiState = uiTr("App Connected (Internal)");
     else if (service->api_state == service->STATE_HTTP)
-        apiState = "App Connected (HTTP)";
+        apiState = uiTr("App Connected (HTTP)");
     else if (service->api_state == service->STATE_ETH)
-        apiState = "App Connected (Ethernet)";
+        apiState = uiTr("App Connected (Ethernet)");
     display->drawString((SCREEN_WIDTH - display->getStringWidth(apiState)) / 2, getTextPositions(display)[line++], apiState);
 
     graphics::drawCommonFooter(display, x, y);
@@ -541,44 +543,57 @@ void drawSystemScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x
     if (SCREEN_HEIGHT > 64 || (SCREEN_HEIGHT <= 64 && line <= 5)) { // Only show API state if the screen can show it
         char api_state[32] = "";
 #if defined(OLED_COMPACT_UI)
-        const char *connection = "None";
+        const char *connection = uiTr("None");
         if (service->api_state == service->STATE_BLE) {
-            connection = "BLE";
+            connection = uiTr("BLE");
         } else if (service->api_state == service->STATE_WIFI) {
-            connection = "WiFi";
+            connection = uiTr("WiFi");
         } else if (service->api_state == service->STATE_SERIAL) {
-            connection = "USB";
+            connection = uiTr("USB");
         } else if (service->api_state == service->STATE_PACKET) {
-            connection = "Local";
+            connection = uiTr("Local");
         } else if (service->api_state == service->STATE_HTTP) {
-            connection = "HTTP";
+            connection = uiTr("HTTP");
         } else if (service->api_state == service->STATE_ETH) {
-            connection = "Eth";
+            connection = uiTr("Eth");
         }
-        snprintf(api_state, sizeof(api_state), "App: %s", connection);
+        snprintf(api_state, sizeof(api_state), uiTr("App: %s"), connection);
 #else
         const char *clientWord = nullptr;
 
-        // Determine if narrow or wide screen
+        // Determine if narrow or wide screen. Chinese has no plural suffix, so
+        // the CN build selects a plural noun and a format without the extra "s".
         if (currentResolution == ScreenResolution::High) {
+#if defined(GAT562_CN_UI)
+            clientWord = uiTr("Clients");
+#else
             clientWord = "Client";
+#endif
         } else {
+#if defined(GAT562_CN_UI)
+            clientWord = uiTr("Apps");
+#else
             clientWord = "App";
+#endif
         }
+#if defined(GAT562_CN_UI)
+        snprintf(api_state, sizeof(api_state), uiTr("No %s Connected"), clientWord);
+#else
         snprintf(api_state, sizeof(api_state), "No %ss Connected", clientWord);
+#endif
 
         if (service->api_state == service->STATE_BLE) {
-            snprintf(api_state, sizeof(api_state), "%s Connected (BLE)", clientWord);
+            snprintf(api_state, sizeof(api_state), uiTr("%s Connected (BLE)"), clientWord);
         } else if (service->api_state == service->STATE_WIFI) {
-            snprintf(api_state, sizeof(api_state), "%s Connected (WiFi)", clientWord);
+            snprintf(api_state, sizeof(api_state), uiTr("%s Connected (WiFi)"), clientWord);
         } else if (service->api_state == service->STATE_SERIAL) {
-            snprintf(api_state, sizeof(api_state), "%s Connected (Serial)", clientWord);
+            snprintf(api_state, sizeof(api_state), uiTr("%s Connected (Serial)"), clientWord);
         } else if (service->api_state == service->STATE_PACKET) {
-            snprintf(api_state, sizeof(api_state), "%s Connected (Internal)", clientWord);
+            snprintf(api_state, sizeof(api_state), uiTr("%s Connected (Internal)"), clientWord);
         } else if (service->api_state == service->STATE_HTTP) {
-            snprintf(api_state, sizeof(api_state), "%s Connected (HTTP)", clientWord);
+            snprintf(api_state, sizeof(api_state), uiTr("%s Connected (HTTP)"), clientWord);
         } else if (service->api_state == service->STATE_ETH) {
-            snprintf(api_state, sizeof(api_state), "%s Connected (Ethernet)", clientWord);
+            snprintf(api_state, sizeof(api_state), uiTr("%s Connected (Ethernet)"), clientWord);
         }
 #endif
         if (api_state[0] != '\0') {

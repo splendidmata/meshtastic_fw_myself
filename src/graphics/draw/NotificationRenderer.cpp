@@ -9,6 +9,7 @@
 #include "graphics/SharedUIDisplay.h"
 #include "graphics/TFTColorRegions.h"
 #include "graphics/TFTPalette.h"
+#include "graphics/ui_translate.h"
 #include "graphics/images.h"
 #include "input/RotaryEncoderInterruptImpl1.h"
 #include "input/UpDownInterruptImpl1.h"
@@ -206,7 +207,7 @@ void NotificationRenderer::drawSSLScreen(OLEDDisplay *display, OLEDDisplayUiStat
 {
     display->setTextAlignment(TEXT_ALIGN_CENTER);
     display->setFont(FONT_SMALL);
-    display->drawString(64 + x, y, "Creating SSL certificate");
+    display->drawString(64 + x, y, uiTr("Creating SSL certificate"));
 
 #ifdef ARCH_ESP32
     yield();
@@ -215,9 +216,9 @@ void NotificationRenderer::drawSSLScreen(OLEDDisplay *display, OLEDDisplayUiStat
 
     display->setFont(FONT_SMALL);
     if ((millis() / 1000) % 2) {
-        display->drawString(64 + x, FONT_HEIGHT_SMALL + y + 2, "Please wait . . .");
+        display->drawString(64 + x, FONT_HEIGHT_SMALL + y + 2, uiTr("Please wait . . ."));
     } else {
-        display->drawString(64 + x, FONT_HEIGHT_SMALL + y + 2, "Please wait . .  ");
+        display->drawString(64 + x, FONT_HEIGHT_SMALL + y + 2, uiTr("Please wait . .  "));
     }
 }
 
@@ -905,7 +906,8 @@ void NotificationRenderer::drawNotificationBox(OLEDDisplay *display, OLEDDisplay
 
         // Consider extra width for signal bars on lines that contain "Signal:"
         uint16_t potentialWidth = lineWidths[lineCount];
-        if (graphics::bannerSignalBars >= 0 && strncmp(renderText, "Signal:", 7) == 0) {
+        const char *signalPrefix = uiTr("Signal:");
+        if (graphics::bannerSignalBars >= 0 && strncmp(renderText, signalPrefix, strlen(signalPrefix)) == 0) {
             const int totalBars = 5;
             const int barWidth = 3;
             const int barSpacing = 2;
@@ -918,7 +920,8 @@ void NotificationRenderer::drawNotificationBox(OLEDDisplay *display, OLEDDisplay
             widestLineWithBars = potentialWidth;
 
         if (!is_picker) {
-            needs_bell |= (strstr(alertBannerMessage, "Alert Received") != nullptr);
+            needs_bell |= (strstr(alertBannerMessage, "Alert Received") != nullptr) ||
+                          (strstr(alertBannerMessage, uiTr("Alert Received")) != nullptr);
             if (lineWidths[lineCount] > maxWidth)
                 maxWidth = lineWidths[lineCount];
         }
@@ -1068,7 +1071,8 @@ void NotificationRenderer::drawNotificationBox(OLEDDisplay *display, OLEDDisplay
         } else {
             // Pop-up
             // If this is the Signal line, center text + bars as one group
-            bool isSignalLine = (graphics::bannerSignalBars >= 0 && strstr(lineBuffer, "Signal:") != nullptr);
+            const char *signalPrefix = uiTr("Signal:");
+            bool isSignalLine = (graphics::bannerSignalBars >= 0 && strstr(lineBuffer, signalPrefix) != nullptr);
             if (isSignalLine) {
                 const int totalBars = 5;
                 const int barWidth = 3;
@@ -1154,19 +1158,19 @@ void NotificationRenderer::drawCriticalFaultFrame(OLEDDisplay *display, OLEDDisp
     display->drawString(0 + x, 0 + y, tempBuf);
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->setFont(FONT_SMALL);
-    display->drawString(0 + x, FONT_HEIGHT_MEDIUM + y, "For help, please visit \nmeshtastic.org");
+    display->drawString(0 + x, FONT_HEIGHT_MEDIUM + y, uiTr("For help, please visit \nmeshtastic.org"));
 }
 
 void NotificationRenderer::drawFrameFirmware(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
     display->setTextAlignment(TEXT_ALIGN_CENTER);
     display->setFont(FONT_MEDIUM);
-    display->drawString(64 + x, y, "Updating");
+    display->drawString(64 + x, y, uiTr("Updating"));
 
     display->setFont(FONT_SMALL);
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->drawStringMaxWidth(0 + x, 2 + y + FONT_HEIGHT_SMALL * 2, x + display->getWidth(),
-                                "Please be patient and do not power off.");
+                                uiTr("Please be patient and do not power off."));
 }
 
 void NotificationRenderer::drawTextInput(OLEDDisplay *display, OLEDDisplayUiState *state)

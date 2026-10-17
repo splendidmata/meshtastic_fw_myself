@@ -149,6 +149,8 @@ extern void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const c
 
 #include "Sensor/AddI2CSensorTemplate.h"
 #include "graphics/ScreenFonts.h"
+#include "graphics/ui_translate.h"
+#include <cmath>
 #include <Throttle.h>
 
 EnvironmentTelemetryModule *environmentTelemetryModule = nullptr;
@@ -161,6 +163,37 @@ EnvironmentTelemetryModule::DisplaySource gDisplaySource = EnvironmentTelemetryM
 static constexpr uint16_t TX_HISTORY_KEY_ENVIRONMENT_TELEMETRY = 0x8002;
 static constexpr uint32_t IMMEDIATE_SEND_MAX_STALENESS_MS = 5UL * 60UL * 1000; // 5 minutes
 static constexpr uint32_t LOCAL_DISPLAY_REFRESH_INTERVAL_MS = 1000;
+
+// Pressure altitude in the International Standard Atmosphere, referenced to
+// 1013.25 hPa at sea level. This is a standard-atmosphere estimate, not true
+// altitude: local weather can shift it by roughly 8 m per hPa near sea level.
+static float pressureAltitudeMeters(float pressureHpa)
+{
+    return 44330.0f * (1.0f - powf(pressureHpa / 1013.25f, 1.0f / 5.255f));
+}
+
+// Correct the standard-atmosphere altitude for the actual air temperature.
+// Pressure altitude assumes a standard temperature profile; in air that is
+// colder than ISA a given pressure sits at a lower true altitude, and vice
+// versa. Scaling by the ratio of measured to ISA temperature at that altitude
+// is the usual aviation cold-temperature correction.
+static float temperatureCorrectedAltitudeMeters(float pressureHpa, float temperatureC)
+{
+    const float isaAltitudeM = pressureAltitudeMeters(pressureHpa);
+    const float isaTemperatureK = 288.15f - 0.0065f * isaAltitudeM;
+
+    // Beyond the troposphere the linear ISA model no longer applies.
+    if (isaTemperatureK < 216.65f)
+        return isaAltitudeM;
+
+    float t = temperatureC;
+    if (t < -60.0f)
+        t = -60.0f;
+    if (t > 60.0f)
+        t = 60.0f;
+
+    return isaAltitudeM * ((t + 273.15f) / isaTemperatureK);
+}
 
 EnvironmentTelemetryModule::DisplaySource EnvironmentTelemetryModule::getDisplaySource()
 {
@@ -547,7 +580,7 @@ void EnvironmentTelemetryModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiSt
 
     // === First line: Show sender name + time since received (left), and first metric (right) ===
     const bool isLocalTelemetry = (getFrom(lastMeasurementPacket) == nodeDB->getNodeNum());
-    const char *sender = isLocalTelemetry ? "Local Sensor" : getSenderShortName(*lastMeasurementPacket);
+    const char *sender = isLocalTelemetry ? uiTr("Local Sensor") : getSenderShortName(*lastMeasurementPacket);
     String leftStr = String(sender);
     if (!isLocalTelemetry) {
         uint32_t agoSecs = service->GetTimeSinceMeshPacket(lastMeasurementPacket);
@@ -561,38 +594,41 @@ void EnvironmentTelemetryModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiSt
 
     // === Collect sensor readings as label strings (no icons) ===
     std::vector<String> entries;
+    int pressureIndex = -1; // Position of the pressure entry, so PAlt can follow it
 
     if (m.has_temperature) {
         String tempStr = moduleConfig.telemetry.environment_display_fahrenheit
-                             ? "Tmp: " + String(UnitConversions::CelsiusToFahrenheit(m.temperature), 1) + "°F"
-                             : "Tmp: " + String(m.temperature, 1) + "°C";
+                             ? String(uiTr("Tmp: ")) + String(UnitConversions::CelsiusToFahrenheit(m.temperature), 1) + "°F"
+                             : String(uiTr("Tmp: ")) + String(m.temperature, 1) + "°C";
         entries.push_back(tempStr);
     }
     if (m.has_relative_humidity)
-        entries.push_back("Hum: " + String(m.relative_humidity, 0) + "%");
-    if (m.barometric_pressure != 0)
-        entries.push_back("Prss: " + String(m.barometric_pressure, 0) + " hPa");
+        entries.push_back(String(uiTr("Hum: ")) + String(m.relative_humidity, 0) + "%");
+    if (m.barometric_pressure != 0) {
+        pressureIndex = entries.size();
+        entries.push_back(String(uiTr("Prss: ")) + String(m.barometric_pressure, 0) + " hPa");
+    }
     if (m.has_iaq) {
-        String aqi = "IAQ: " + String(m.iaq);
+        String aqi = String(uiTr("IAQ: ")) + String(m.iaq);
         const char *bannerMsg = nullptr; // Default: no banner
 
         if (m.iaq <= 25)
-            aqi += " (Excellent)";
+            aqi += uiTr(" (Excellent)");
         else if (m.iaq <= 50)
-            aqi += " (Good)";
+            aqi += uiTr(" (Good)");
         else if (m.iaq <= 100)
-            aqi += " (Moderate)";
+            aqi += uiTr(" (Moderate)");
         else if (m.iaq <= 150)
-            aqi += " (Poor)";
+            aqi += uiTr(" (Poor)");
         else if (m.iaq <= 200) {
-            aqi += " (Unhealthy)";
-            bannerMsg = "Unhealthy IAQ";
+            aqi += uiTr(" (Unhealthy)");
+            bannerMsg = uiTr("Unhealthy IAQ");
         } else if (m.iaq <= 300) {
-            aqi += " (Very Unhealthy)";
-            bannerMsg = "Very Unhealthy IAQ";
+            aqi += uiTr(" (Very Unhealthy)");
+            bannerMsg = uiTr("Very Unhealthy IAQ");
         } else {
-            aqi += " (Hazardous)";
-            bannerMsg = "Hazardous IAQ";
+            aqi += uiTr(" (Hazardous)");
+            bannerMsg = uiTr("Hazardous IAQ");
         }
 
         entries.push_back(aqi);
@@ -619,26 +655,53 @@ void EnvironmentTelemetryModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiSt
     if (m.voltage != 0 || m.current != 0)
         entries.push_back(String(m.voltage, 1) + "V / " + String(m.current, 0) + "mA");
     if (m.lux != 0)
-        entries.push_back("Light: " + String(m.lux, 0) + "lx");
+        entries.push_back(String(uiTr("Light: ")) + String(m.lux, 0) + "lx");
     if (m.white_lux != 0)
-        entries.push_back("White: " + String(m.white_lux, 0) + "lx");
+        entries.push_back(String(uiTr("White: ")) + String(m.white_lux, 0) + "lx");
     if (m.weight != 0)
-        entries.push_back("Weight: " + String(m.weight, 0) + "kg");
+        entries.push_back(String(uiTr("Weight: ")) + String(m.weight, 0) + "kg");
     if (m.distance != 0)
-        entries.push_back("Level: " + String(m.distance, 0) + "mm");
+        entries.push_back(String(uiTr("Level: ")) + String(m.distance, 0) + "mm");
     if (m.radiation != 0)
-        entries.push_back("Rad: " + String(m.radiation, 2) + " µR/h");
+        entries.push_back(String(uiTr("Rad: ")) + String(m.radiation, 2) + " µR/h");
 
-    // === Show first available metric on top-right of first line ===
+    // === Pressure altitude string, drawn directly under the pressure row ===
+    String paltStr;
+    const bool hasPAlt =
+        (pressureIndex >= 0 && m.barometric_pressure >= 100.0f && m.barometric_pressure <= 1200.0f);
+    if (hasPAlt) {
+        const bool corrected = m.has_temperature;
+        const float altitudeM = corrected ? temperatureCorrectedAltitudeMeters(m.barometric_pressure, m.temperature)
+                                          : pressureAltitudeMeters(m.barometric_pressure);
+        const bool imperial = config.display.units == meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL;
+        const float shown = imperial ? altitudeM * 3.28084f : altitudeM;
+        paltStr = String(uiTr(corrected ? "PAlt: " : "PAlt(ISA): ")) +
+                  String(static_cast<int>(lroundf(shown))) + (imperial ? "ft" : "m");
+    }
+
+    // === Show first available metric next to the sender name ===
     if (!entries.empty()) {
         String valueStr = entries.front();
-        int rightX = SCREEN_WIDTH - display->getStringWidth(valueStr);
-        display->drawString(rightX, currentY, valueStr);
+        const int valueWidth = display->getStringWidth(valueStr);
+        int valueX = x + display->getStringWidth(leftStr) + 4;
+        if (valueX + valueWidth > display->getWidth())
+            valueX = display->getWidth() - valueWidth;
+        display->drawString(valueX, currentY, valueStr);
         entries.erase(entries.begin()); // Remove from queue
+        if (pressureIndex >= 0)
+            pressureIndex--;
     }
 
     // === Advance to next line for remaining telemetry entries ===
     currentY += rowHeight;
+
+    // Pressure was the header metric: its altitude goes on the row directly below.
+    bool paltDrawn = false;
+    if (hasPAlt && pressureIndex < 0) {
+        display->drawString(x, currentY, paltStr);
+        currentY += rowHeight;
+        paltDrawn = true;
+    }
 
     // === Draw remaining entries in 2-column format (left and right) ===
     for (size_t i = 0; i < entries.size(); i += 2) {
@@ -652,6 +715,14 @@ void EnvironmentTelemetryModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiSt
         }
 
         currentY += rowHeight;
+
+        // Pressure altitude always occupies its own row, directly under pressure.
+        if (hasPAlt && !paltDrawn &&
+            (i == static_cast<size_t>(pressureIndex) || i + 1 == static_cast<size_t>(pressureIndex))) {
+            display->drawString(x, currentY, paltStr);
+            currentY += rowHeight;
+            paltDrawn = true;
+        }
     }
     graphics::drawCommonFooter(display, x, y);
 }

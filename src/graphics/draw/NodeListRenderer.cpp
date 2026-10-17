@@ -13,6 +13,7 @@
 #include "graphics/SharedUIDisplay.h"
 #include "graphics/TFTColorRegions.h"
 #include "graphics/TFTPalette.h"
+#include "graphics/ui_translate.h"
 #include "graphics/images.h"
 #include "meshUtils.h"
 #include <algorithm>
@@ -636,7 +637,7 @@ void drawNodeListScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t
     display->clear();
 
     // Draw the battery/time header
-    graphics::drawCommonHeader(display, x, y, title);
+    graphics::drawCommonHeader(display, x, y, uiTr(title));
 
     // Compact panels have no header (see drawCommonHeader) - don't reserve space for one.
     if (!graphics::isCompactPanel(display))

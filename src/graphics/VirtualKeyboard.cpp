@@ -258,7 +258,12 @@ void VirtualKeyboard::drawInputArea(OLEDDisplay *display, int16_t offsetX, int16
         // Draw header and reserve exact font height (plus a tighter gap) to maximize input area
 #if defined(GAT562_T9_KEYBOARD)
         std::string visibleHeader = headerText;
-        const int headerWidth = screenWidth - display->getStringWidth("EN") - 8;
+#if defined(VK_HAS_CJK_IME)
+        const char *languageBadge = "中文";
+#else
+        const char *languageBadge = "EN";
+#endif
+        const int headerWidth = screenWidth - display->getStringWidth(languageBadge) - 8;
         while (!visibleHeader.empty() && display->getStringWidth(visibleHeader.c_str()) > headerWidth) {
             size_t last = visibleHeader.size() - 1;
             while (last > 0 && (static_cast<uint8_t>(visibleHeader[last]) & 0xC0) == 0x80)
@@ -278,9 +283,9 @@ void VirtualKeyboard::drawInputArea(OLEDDisplay *display, int16_t offsetX, int16
 #if defined(VK_HAS_CJK_IME)
     if (IMEStatus == ACTIVE) {
 #if defined(CJK_IME_ZHUYIN)
-        inputLanguage = "TW";
+        inputLanguage = "繁中";
 #else
-        inputLanguage = "CN";
+        inputLanguage = "中文";
 #endif
     }
 #endif
@@ -734,11 +739,11 @@ void VirtualKeyboard::drawKey(OLEDDisplay *display, const VirtualKey &key, bool 
         keyText = (key.type == VK_BACKSPACE) ? "BACK" : (key.type == VK_ENTER) ? "ENTER" : (key.type == VK_SPACE) ? "SPACE" : "";
         if (key.type == VK_ESC) {
 #if defined(CJK_IME_ZHUYIN)
-            keyText = (IMEStatus == ACTIVE) ? "TW ESC" : "EN ESC";
+            keyText = (IMEStatus == ACTIVE) ? "EN/繁" : "繁/EN";
 #elif defined(VK_HAS_CJK_IME)
-            keyText = (IMEStatus == ACTIVE) ? "CN ESC" : "EN ESC";
+            keyText = (IMEStatus == ACTIVE) ? "EN/中" : "中/EN";
 #else
-            keyText = "EN ESC";
+            keyText = "ESC";
 #endif
         }
     } else {

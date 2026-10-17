@@ -16,6 +16,7 @@
 #include "graphics/SharedUIDisplay.h"
 #include "graphics/TFTColorRegions.h"
 #include "graphics/TFTPalette.h"
+#include "graphics/ui_translate.h"
 #include "graphics/TimeFormatters.h"
 #include "graphics/draw/NotificationRenderer.h"
 #include "graphics/emotes.h"
@@ -465,10 +466,10 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
 
     // Title string depending on mode
     char titleStr[48];
-    snprintf(titleStr, sizeof(titleStr), "Messages");
+    snprintf(titleStr, sizeof(titleStr), "%s", uiTr("Messages"));
     switch (currentMode) {
     case ThreadMode::ALL:
-        snprintf(titleStr, sizeof(titleStr), "Messages");
+        snprintf(titleStr, sizeof(titleStr), "%s", uiTr("Messages"));
         break;
     case ThreadMode::CHANNEL: {
         const char *cname = channels.getName(currentChannel);
@@ -501,7 +502,7 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         // Still in ALL mode and no messages at all → show placeholder
         graphics::drawCommonHeader(display, x, y, titleStr);
         didReset = false;
-        const char *messageString = "No messages";
+        const char *messageString = uiTr("No messages");
         int center_text = (SCREEN_WIDTH / 2) - (display->getStringWidth(messageString) / 2);
         display->drawString(center_text, getTextPositions(display)[2], messageString);
         graphics::drawCommonFooter(display, x, y);
@@ -1204,9 +1205,9 @@ void handleNewMessage(OLEDDisplay *display, const StoredMessage &sm, const mesht
 
         if (isAlert) {
             if (truncatedLongName[0])
-                snprintf(banner, sizeof(banner), "Alert Received from\n%s", truncatedLongName);
+                snprintf(banner, sizeof(banner), uiTr("Alert Received from\n%s"), truncatedLongName);
             else
-                strcpy(banner, "Alert Received");
+                strcpy(banner, uiTr("Alert Received"));
         } else {
             // Skip muted channels/senders unless it's an alert
             if (isMuted)
@@ -1214,12 +1215,12 @@ void handleNewMessage(OLEDDisplay *display, const StoredMessage &sm, const mesht
 
             if (truncatedLongName[0]) {
                 if (currentResolution == ScreenResolution::UltraLow) {
-                    strcpy(banner, "New Message");
+                    strcpy(banner, uiTr("New Message"));
                 } else {
-                    snprintf(banner, sizeof(banner), "New Message from\n%s", truncatedLongName);
+                    snprintf(banner, sizeof(banner), uiTr("New Message from\n%s"), truncatedLongName);
                 }
             } else
-                strcpy(banner, "New Message");
+                strcpy(banner, uiTr("New Message"));
         }
 
         // Append context (which channel or DM) so the banner shows where the message arrived

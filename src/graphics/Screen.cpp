@@ -90,6 +90,7 @@ extern NicheGraphics::BaseUIEInkDisplay *setupNicheGraphicsBaseUI();
 #include "graphics/ScreenFonts.h"
 #include "graphics/SharedUIDisplay.h"
 #include "graphics/TFTPalette.h"
+#include "graphics/ui_translate.h"
 #include "graphics/emotes.h"
 #include "graphics/images.h"
 #include "input/TouchScreenImpl1.h"
@@ -343,6 +344,17 @@ void Screen::showOverlayBanner(BannerOverlayOptions banner_overlay_options)
 #ifdef USE_EINK
     EINK_ADD_FRAMEFLAG(dispdev, DEMAND_FAST); // Skip full refresh for all overlay menus
 #endif
+    // Translate the banner message and option labels once, when the banner is
+    // created. uiTr() returns pointers to static storage, so the caller's
+    // option array can be redirected without lifetime concerns.
+    static const char *translatedOptions[16];
+    if (banner_overlay_options.optionsArrayPtr && banner_overlay_options.optionsCount <= 16) {
+        for (uint8_t i = 0; i < banner_overlay_options.optionsCount; ++i)
+            translatedOptions[i] = uiTr(banner_overlay_options.optionsArrayPtr[i]);
+        banner_overlay_options.optionsArrayPtr = translatedOptions;
+    }
+    banner_overlay_options.message = uiTr(banner_overlay_options.message);
+
     // Store the message and set the expiration timestamp
     strncpy(NotificationRenderer::alertBannerMessage, banner_overlay_options.message, 255);
     NotificationRenderer::parseBannerMessageWithFonts(NotificationRenderer::alertBannerMessage);
@@ -370,7 +382,7 @@ void Screen::showNodePicker(const char *message, uint32_t durationMs, std::funct
 #endif
     nodeDB->pause_sort(true);
     // Store the message and set the expiration timestamp
-    strncpy(NotificationRenderer::alertBannerMessage, message, 255);
+    strncpy(NotificationRenderer::alertBannerMessage, uiTr(message), 255);
     NotificationRenderer::alertBannerMessage[255] = '\0'; // Ensure null termination
     NotificationRenderer::alertBannerUntil = (durationMs == 0) ? 0 : Time::timerEndsAtMillis(durationMs);
     NotificationRenderer::alertBannerCallback = bannerCallback;
@@ -392,7 +404,7 @@ void Screen::showNumberPicker(const char *message, uint32_t durationMs, uint8_t 
     EINK_ADD_FRAMEFLAG(dispdev, DEMAND_FAST); // Skip full refresh for all overlay menus
 #endif
     // Store the message and set the expiration timestamp
-    strncpy(NotificationRenderer::alertBannerMessage, message, 255);
+    strncpy(NotificationRenderer::alertBannerMessage, uiTr(message), 255);
     NotificationRenderer::alertBannerMessage[255] = '\0'; // Ensure null termination
     NotificationRenderer::alertBannerUntil = (durationMs == 0) ? 0 : Time::timerEndsAtMillis(durationMs);
     NotificationRenderer::alertBannerCallback = bannerCallback;
@@ -421,7 +433,7 @@ void Screen::showAlphanumericPicker(const char *message, const char *initialText
     if (length >= sizeof(NotificationRenderer::alphanumericValue))
         length = sizeof(NotificationRenderer::alphanumericValue) - 1;
 
-    strncpy(NotificationRenderer::alertBannerMessage, message, 255);
+    strncpy(NotificationRenderer::alertBannerMessage, uiTr(message), 255);
     NotificationRenderer::alertBannerMessage[255] = '\0'; // Ensure null termination
     NotificationRenderer::alertBannerUntil = (durationMs == 0) ? 0 : Time::timerEndsAtMillis(durationMs);
     NotificationRenderer::textInputCallback = bannerCallback;
@@ -452,13 +464,14 @@ void Screen::showTextInput(const char *header, const char *initialText, uint32_t
                            std::function<void(const std::string &)> textCallback)
 {
     LOG_INFO("showTextInput header='%s', durationMs=%d", header ? header : "NULL", durationMs);
+    const char *translatedHeader = uiTr(header ? header : "Text Input");
 
     // Start OnScreenKeyboardModule session (non-touch variant)
-    OnScreenKeyboardModule::instance().start(header, initialText, durationMs, textCallback);
+    OnScreenKeyboardModule::instance().start(translatedHeader, initialText, durationMs, textCallback);
     NotificationRenderer::textInputCallback = textCallback;
 
     // Store the message and set the expiration timestamp (use same pattern as other notifications)
-    strncpy(NotificationRenderer::alertBannerMessage, header ? header : "Text Input", 255);
+    strncpy(NotificationRenderer::alertBannerMessage, translatedHeader, 255);
     NotificationRenderer::alertBannerMessage[255] = '\0';
     NotificationRenderer::alertBannerUntil = (durationMs == 0) ? 0 : Time::timerEndsAtMillis(durationMs);
     NotificationRenderer::pauseBanner = false;
@@ -1410,7 +1423,7 @@ void Screen::setScreensaverFrames(FrameCallback einkScreensaver)
 // Called when a frame should be added / removed, or custom frames should be cleared
 // No-op on other boards, so this costs them no flash/RAM.
 #if defined(OLED_COMPACT_UI)
-#define PUSH_FRAME_TITLE(x) frameTitles.push_back(x)
+#define PUSH_FRAME_TITLE(x) frameTitles.push_back(uiTr(x))
 #define CLEAR_FRAME_TITLES() frameTitles.clear()
 #else
 #define PUSH_FRAME_TITLE(x)

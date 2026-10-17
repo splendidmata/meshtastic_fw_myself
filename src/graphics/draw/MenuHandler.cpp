@@ -14,6 +14,7 @@
 #include "graphics/Backlight.h"
 #include "graphics/Screen.h"
 #include "graphics/SharedUIDisplay.h"
+#include "graphics/ui_translate.h"
 #include "graphics/TFTColorRegions.h"
 #include "graphics/draw/MessageRenderer.h"
 #include "graphics/draw/UIRenderer.h"
@@ -536,7 +537,7 @@ void menuHandler::FrequencySlotPicker()
         numChannels = (uint32_t)(MAX_CHANNEL_OPTIONS - 2);
 
     for (uint32_t ch = 1; ch <= numChannels; ch++) {
-        snprintf(channelText[ch - 1], sizeof(channelText[ch - 1]), "Slot %lu", (unsigned long)ch);
+        snprintf(channelText[ch - 1], sizeof(channelText[ch - 1]), uiTr("Slot %lu"), (unsigned long)ch);
         optionsArray[options] = channelText[ch - 1];
         optionsEnumArray[options++] = (int)ch;
     }
@@ -1141,7 +1142,7 @@ void menuHandler::messageViewModeMenu()
             name = sanitizeString(node->long_name).substr(0, 15);
         else {
             char buf[20];
-            snprintf(buf, sizeof(buf), "Node !%08x", (unsigned int)peer);
+            snprintf(buf, sizeof(buf), uiTr("Node !%08x"), (unsigned int)peer);
             name = buf;
         }
         labels.push_back("@" + name);
@@ -2536,9 +2537,10 @@ void menuHandler::geofenceOptionsMenu()
     static std::string labels[4];
     static const char *optionsArray[4];
     labels[0] = "Back";
-    labels[1] = std::string("Enter Alerts: ") + (entry->notificationEnabled(WAYPOINT_NOTIFY_ENTER) ? "On" : "Off");
-    labels[2] = std::string("Exit Alerts: ") + (entry->notificationEnabled(WAYPOINT_NOTIFY_EXIT) ? "On" : "Off");
-    labels[3] = std::string("Favorites Only: ") + (entry->notificationEnabled(WAYPOINT_NOTIFY_FAVORITES_ONLY) ? "On" : "Off");
+    labels[1] = std::string(uiTr("Enter Alerts: ")) + (entry->notificationEnabled(WAYPOINT_NOTIFY_ENTER) ? uiTr("On") : uiTr("Off"));
+    labels[2] = std::string(uiTr("Exit Alerts: ")) + (entry->notificationEnabled(WAYPOINT_NOTIFY_EXIT) ? uiTr("On") : uiTr("Off"));
+    labels[3] = std::string(uiTr("Favorites Only: ")) +
+                (entry->notificationEnabled(WAYPOINT_NOTIFY_FAVORITES_ONLY) ? uiTr("On") : uiTr("Off"));
     for (size_t i = 0; i < 4; ++i)
         optionsArray[i] = labels[i].c_str();
 
@@ -2841,8 +2843,9 @@ void menuHandler::keyVerificationFinalPrompt()
 {
     char message[40] = {0};
     memset(message, 0, sizeof(message));
-    sprintf(message, "Verification: \n");
-    keyVerificationModule->generateVerificationCode(message + 15); // send the toPhone packet
+    const char *verificationPrefix = uiTr("Verification: \n");
+    snprintf(message, sizeof(message), "%s", verificationPrefix);
+    keyVerificationModule->generateVerificationCode(message + strlen(verificationPrefix)); // send the toPhone packet
 
     if (screen) {
         static const char *optionsArray[] = {"Reject", "Accept"};
