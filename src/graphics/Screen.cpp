@@ -71,10 +71,6 @@ extern NicheGraphics::BaseUIEInkDisplay *setupNicheGraphicsBaseUI();
 #include "gps/RTC.h"
 #include "graphics/Backlight.h"
 
-#if defined(GAT562)
-#include "graphics/GAT562Arcade.h"
-#endif
-
 #if defined(OLED_CJK)
 // The glyph table is picked by the variant so that boards can trade coverage for
 // flash: OLED_CJK_CUSTOM names the header, OLED_CJK_SIZE has to match the cell
@@ -132,9 +128,6 @@ namespace graphics
 // This means the *visible* area (sh1106 can address 132, but shows 128 for example)
 #define IDLE_FRAMERATE 1 // in fps
 #define COMPASS_ACTIVE_FRAMERATE 20
-#if defined(GAT562)
-#define GAT562_ARCADE_FRAMERATE 30
-#endif
 
 // DEBUG
 #if BASEUI_HAS_GAMES
@@ -1277,10 +1270,6 @@ int32_t Screen::runOnce()
     // otherwise that breaks animations.
 
     uint32_t desiredFramerate = IDLE_FRAMERATE;
-#if defined(GAT562)
-    if (GAT562Arcade::instance().isActive())
-        desiredFramerate = GAT562_ARCADE_FRAMERATE;
-#endif
 #if HAS_GPS && !defined(USE_EINK)
     if (showingNormalScreen && hasCompass) {
         const uint8_t currentFrame = ui->getUiState()->currentFrame;
@@ -2203,11 +2192,6 @@ int Screen::handleInputEvent(const InputEvent *event)
     if (!screenOn)
         return 0;
 
-#if defined(GAT562)
-    if (graphics::GAT562Arcade::instance().isActive())
-        return graphics::GAT562Arcade::instance().handleInputEvent(event);
-#endif
-
     // Handle text input notifications specially - pass input to virtual keyboard
     if (NotificationRenderer::current_notification_type == notificationTypeEnum::text_input) {
         NotificationRenderer::inEvent = *event;
@@ -2217,20 +2201,6 @@ int Screen::handleInputEvent(const InputEvent *event)
         updateUiFrame(ui);
         return 0;
     }
-
-#if defined(GAT562)
-    if (event->inputEvent == INPUT_BROKER_SELECT_LONG) {
-        const bool canStartArcade = !NotificationRenderer::isOverlayBannerShowing() &&
-                                    NotificationRenderer::current_notification_type == notificationTypeEnum::none &&
-                                    menuHandler::menuQueue == menuHandler::MenuNone &&
-                                    !(cannedMessageModule && cannedMessageModule->shouldDraw());
-        if (canStartArcade) {
-            graphics::GAT562Arcade::instance().start();
-            setFastFramerate();
-            return 1;
-        }
-    }
-#endif
 
 #ifdef USE_EINK // the screen is the last input handler, so if an event makes it here, we can assume it will prompt a screen draw.
 #if HAS_PWM_BACKLIGHT
@@ -2362,8 +2332,10 @@ int Screen::handleInputEvent(const InputEvent *event)
             } else if (event->inputEvent == INPUT_BROKER_RIGHT ||
                        (event->inputEvent == INPUT_BROKER_ANYKEY && event->kbchar == ' ')) {
                 showFrame(FrameDirection::NEXT);
-#if defined(GAT562_T9_KEYBOARD)
+#if defined(GAT562)
             } else if (event->inputEvent == INPUT_BROKER_USER_PRESS) {
+                // Side button: blank the display. Any button press wakes it again,
+                // and InputBroker drops that wake-up event so it cannot toggle back off.
                 handleSetOn(false);
                 return 1;
 #else

@@ -14,6 +14,7 @@
 #include "TransmitHistory.h"
 #include "UnitConversions.h"
 #include "buzz.h"
+#include "gps/GPS.h"
 #include "gps/RTC.h"
 #include "graphics/SharedUIDisplay.h"
 #include "graphics/images.h"
@@ -163,22 +164,36 @@ static constexpr uint16_t TX_HISTORY_KEY_ENVIRONMENT_TELEMETRY = 0x8002;
 static constexpr uint32_t IMMEDIATE_SEND_MAX_STALENESS_MS = 5UL * 60UL * 1000; // 5 minutes
 static constexpr uint32_t LOCAL_DISPLAY_REFRESH_INTERVAL_MS = 1000;
 
-// Pressure altitude in the International Standard Atmosphere, referenced to
-// 1013.25 hPa at sea level. This is a standard-atmosphere estimate, not true
-// altitude: local weather can shift it by roughly 8 m per hPa near sea level.
-static float pressureAltitudeMeters(float pressureHpa)
+// Pressure altitude in the International Standard Atmosphere, referenced to a
+// sea-level pressure (QNE at 1013.25 hPa, or a locally calibrated QNH).
+static float pressureAltitudeMeters(float pressureHpa, float referenceHpa = 1013.25f)
 {
-    return 44330.0f * (1.0f - powf(pressureHpa / 1013.25f, 1.0f / 5.255f));
+    return 44330.0f * (1.0f - powf(pressureHpa / referenceHpa, 1.0f / 5.255f));
 }
 
-// Correct the standard-atmosphere altitude for the actual air temperature.
-// Pressure altitude assumes a standard temperature profile; in air that is
-// colder than ISA a given pressure sits at a lower true altitude, and vice
-// versa. Scaling by the ratio of measured to ISA temperature at that altitude
-// is the usual aviation cold-temperature correction.
-static float temperatureCorrectedAltitudeMeters(float pressureHpa, float temperatureC)
+// Reduce the station pressure to sea level (QNH) using a known station altitude
+// and the measured temperature, assuming the standard 6.5 K/km lapse rate.
+static float qnhFromStation(float pressureHpa, float altitudeM, float temperatureC)
 {
-    const float isaAltitudeM = pressureAltitudeMeters(pressureHpa);
+    const float seaLevelTempK = temperatureC + 273.15f + 0.0065f * altitudeM;
+    const float ratio = 1.0f - 0.0065f * altitudeM / seaLevelTempK;
+    if (ratio < 0.2f)
+        return 1013.25f;
+
+    const float qnh = pressureHpa * powf(ratio, -5.25588f);
+
+    // Reject implausible reductions so a bad temperature/GPS sample cannot poison the cache.
+    if (qnh < 900.0f || qnh > 1100.0f)
+        return 1013.25f;
+    return qnh;
+}
+
+// Correct a pressure altitude for the actual air temperature. Pressure altitude
+// assumes a standard temperature profile; in air that is colder than ISA a given
+// pressure sits at a lower true altitude, and vice versa.
+static float temperatureCorrectedAltitudeMeters(float pressureHpa, float referenceHpa, float temperatureC)
+{
+    const float isaAltitudeM = pressureAltitudeMeters(pressureHpa, referenceHpa);
     const float isaTemperatureK = 288.15f - 0.0065f * isaAltitudeM;
 
     // Beyond the troposphere the linear ISA model no longer applies.
@@ -664,17 +679,32 @@ void EnvironmentTelemetryModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiSt
     if (m.radiation != 0)
         entries.push_back(String("Rad: ") + String(m.radiation, 2) + " µR/h");
 
-    // === Pressure altitude string, drawn directly under the pressure row ===
+    // === QNH: calibrate against GPS while we have a fix, then reuse the value ===
+    static float cachedQnhHpa = 0.0f;
+    static uint32_t qnhCalibratedMs = 0;
+    if (isLocalTelemetry && m.has_temperature && m.barometric_pressure > 0 && gps && gps->hasLock() &&
+        localPosition.has_altitude && localPosition.altitude != 0) {
+        const uint32_t nowMs = millis();
+        if (cachedQnhHpa == 0.0f || (nowMs - qnhCalibratedMs) >= 60000) {
+            cachedQnhHpa = qnhFromStation(m.barometric_pressure, (float)localPosition.altitude, m.temperature);
+            qnhCalibratedMs = nowMs;
+        }
+    }
+    const bool hasQnh = cachedQnhHpa > 0.0f;
+    const float referenceHpa = hasQnh ? cachedQnhHpa : 1013.25f;
+
+    // === Altitude string, drawn directly under the pressure row ===
     String paltStr;
     const bool hasPAlt =
         (pressureIndex >= 0 && m.barometric_pressure >= 100.0f && m.barometric_pressure <= 1200.0f);
     if (hasPAlt) {
         const bool corrected = m.has_temperature;
-        const float altitudeM = corrected ? temperatureCorrectedAltitudeMeters(m.barometric_pressure, m.temperature)
-                                          : pressureAltitudeMeters(m.barometric_pressure);
+        const float altitudeM = corrected
+                                   ? temperatureCorrectedAltitudeMeters(m.barometric_pressure, referenceHpa, m.temperature)
+                                   : pressureAltitudeMeters(m.barometric_pressure, referenceHpa);
         const bool imperial = config.display.units == meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL;
         const float shown = imperial ? altitudeM * 3.28084f : altitudeM;
-        paltStr = String(corrected ? "PAlt: " : "PAlt(ISA): ") + String(static_cast<int>(lroundf(shown))) +
+        paltStr = String(hasQnh ? "QNH: " : "PAlt(ISA): ") + String(static_cast<int>(lroundf(shown))) +
                   (imperial ? "ft" : "m");
     }
 
