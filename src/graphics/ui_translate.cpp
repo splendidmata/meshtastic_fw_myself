@@ -438,6 +438,9 @@ static const UiTranslation kTable[] = {
     {"Environment", "环境"},
     {"PAlt: ", "气压高度: "},
     {"PAlt(ISA): ", "气压高度(ISA): "},
+    {"QNH: ", "海压高度: "},
+    {"GCJ-02: On", "GCJ-02: 开"},
+    {"GCJ-02: Off", "GCJ-02: 关"},
 };
 
 } // namespace

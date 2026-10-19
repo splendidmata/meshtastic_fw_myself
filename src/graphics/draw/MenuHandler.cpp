@@ -18,6 +18,7 @@
 #include "graphics/TFTColorRegions.h"
 #include "graphics/draw/MessageRenderer.h"
 #include "graphics/draw/UIRenderer.h"
+#include "gps/Gcj02.h"
 #include "input/RotaryEncoderInterruptImpl1.h"
 #include "input/UpDownInterruptImpl1.h"
 #include "main.h"
@@ -1469,6 +1470,7 @@ void menuHandler::positionBaseMenu()
     enum class PositionAction {
         GpsToggle,
         GpsFormat,
+        Gcj02,
         CompassMenu,
         CompassCalibrate,
         GPSSmartPosition,
@@ -1480,6 +1482,7 @@ void menuHandler::positionBaseMenu()
         {"Back", OptionsAction::Back},
         {"On/Off Toggle", OptionsAction::Select, static_cast<int>(PositionAction::GpsToggle)},
         {"Format", OptionsAction::Select, static_cast<int>(PositionAction::GpsFormat)},
+        {"GCJ-02: Off", OptionsAction::Select, static_cast<int>(PositionAction::Gcj02)},
         {"Smart Position", OptionsAction::Select, static_cast<int>(PositionAction::GPSSmartPosition)},
         {"Update Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSUpdateInterval)},
         {"Broadcast Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSPositionBroadcast)},
@@ -1490,6 +1493,7 @@ void menuHandler::positionBaseMenu()
         {"Back", OptionsAction::Back},
         {"On/Off Toggle", OptionsAction::Select, static_cast<int>(PositionAction::GpsToggle)},
         {"Format", OptionsAction::Select, static_cast<int>(PositionAction::GpsFormat)},
+        {"GCJ-02: Off", OptionsAction::Select, static_cast<int>(PositionAction::Gcj02)},
         {"Smart Position", OptionsAction::Select, static_cast<int>(PositionAction::GPSSmartPosition)},
         {"Update Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSUpdateInterval)},
         {"Broadcast Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSPositionBroadcast)},
@@ -1523,6 +1527,12 @@ void menuHandler::positionBaseMenu()
             menuQueue = GpsFormatMenu;
             screen->runNow();
             break;
+        case PositionAction::Gcj02: {
+            const bool on = !gcj02::enabled();
+            gcj02::setEnabled(on);
+            screen->showSimpleBanner(on ? "GCJ-02: On" : "GCJ-02: Off", 2000);
+            break;
+        }
         case PositionAction::CompassMenu:
             menuQueue = CompassPointNorthMenu;
             screen->runNow();
@@ -1563,6 +1573,13 @@ void menuHandler::positionBaseMenu()
     }
 #else
     bannerOptions = createStaticBannerOptions("GPS Action", baseOptions, baseLabels, onSelection);
+#endif
+
+    // Show the live state on the GCJ-02 row (index 3 in both option tables).
+    const char *gcjLabel = gcj02::enabled() ? "GCJ-02: On" : "GCJ-02: Off";
+    baseLabels[3] = gcjLabel;
+#if !MESHTASTIC_EXCLUDE_ACCELEROMETER
+    calibrateLabels[3] = gcjLabel;
 #endif
 
     screen->showOverlayBanner(bannerOptions);
