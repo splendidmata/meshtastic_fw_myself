@@ -27,6 +27,7 @@ class menuHandler
         GpsSmartPositionMenu,
         GpsUpdateIntervalMenu,
         GpsPositionBroadcastMenu,
+        Gcj02Menu,
         CompassPointNorthMenu,
         ResetNodeDbMenu,
         BuzzerModeMenuPicker,
@@ -101,6 +102,7 @@ class menuHandler
     static void GPSSmartPositionMenu();
     static void GPSUpdateIntervalMenu();
     static void GPSPositionBroadcastMenu();
+    static void GCJ02Menu();
     static void BuzzerModeMenu();
     static void switchToMUIMenu();
     static void nodeListMenu();
