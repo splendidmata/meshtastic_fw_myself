@@ -1469,7 +1469,7 @@ void menuHandler::positionBaseMenu()
     enum class PositionAction {
         GpsToggle,
         GpsFormat,
-        Gcj02,
+        Gcj02Menu,
         CompassMenu,
         CompassCalibrate,
         GPSSmartPosition,
@@ -1481,7 +1481,7 @@ void menuHandler::positionBaseMenu()
         {"Back", OptionsAction::Back},
         {"On/Off Toggle", OptionsAction::Select, static_cast<int>(PositionAction::GpsToggle)},
         {"Format", OptionsAction::Select, static_cast<int>(PositionAction::GpsFormat)},
-        {"GCJ-02: Off", OptionsAction::Select, static_cast<int>(PositionAction::Gcj02)},
+        {"GCJ-02", OptionsAction::Select, static_cast<int>(PositionAction::Gcj02Menu)},
         {"Smart Position", OptionsAction::Select, static_cast<int>(PositionAction::GPSSmartPosition)},
         {"Update Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSUpdateInterval)},
         {"Broadcast Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSPositionBroadcast)},
@@ -1492,7 +1492,7 @@ void menuHandler::positionBaseMenu()
         {"Back", OptionsAction::Back},
         {"On/Off Toggle", OptionsAction::Select, static_cast<int>(PositionAction::GpsToggle)},
         {"Format", OptionsAction::Select, static_cast<int>(PositionAction::GpsFormat)},
-        {"GCJ-02: Off", OptionsAction::Select, static_cast<int>(PositionAction::Gcj02)},
+        {"GCJ-02", OptionsAction::Select, static_cast<int>(PositionAction::Gcj02Menu)},
         {"Smart Position", OptionsAction::Select, static_cast<int>(PositionAction::GPSSmartPosition)},
         {"Update Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSUpdateInterval)},
         {"Broadcast Interval", OptionsAction::Select, static_cast<int>(PositionAction::GPSPositionBroadcast)},
@@ -1526,12 +1526,10 @@ void menuHandler::positionBaseMenu()
             menuQueue = GpsFormatMenu;
             screen->runNow();
             break;
-        case PositionAction::Gcj02: {
-            const bool on = !gcj02::enabled();
-            gcj02::setEnabled(on);
-            screen->showSimpleBanner(on ? "GCJ-02: On" : "GCJ-02: Off", 2000);
+        case PositionAction::Gcj02Menu:
+            menuQueue = Gcj02Menu;
+            screen->runNow();
             break;
-        }
         case PositionAction::CompassMenu:
             menuQueue = CompassPointNorthMenu;
             screen->runNow();
@@ -1572,13 +1570,6 @@ void menuHandler::positionBaseMenu()
     }
 #else
     bannerOptions = createStaticBannerOptions("GPS Action", baseOptions, baseLabels, onSelection);
-#endif
-
-    // Show the live state on the GCJ-02 row (index 3 in both option tables).
-    const char *gcjLabel = gcj02::enabled() ? "GCJ-02: On" : "GCJ-02: Off";
-    baseLabels[3] = gcjLabel;
-#if !MESHTASTIC_EXCLUDE_ACCELEROMETER
-    calibrateLabels[3] = gcjLabel;
 #endif
 
     screen->showOverlayBanner(bannerOptions);
@@ -1956,6 +1947,40 @@ void menuHandler::compassNorthMenu()
     }
     bannerOptions.InitialSelected = initialSelection;
 
+    screen->showOverlayBanner(bannerOptions);
+}
+
+void menuHandler::GCJ02Menu()
+{
+    static const PositionMenuOption gcj02Options[] = {
+        {"Back", OptionsAction::Back},
+        {"On", OptionsAction::Select, 1},
+        {"Off", OptionsAction::Select, 0},
+    };
+
+    constexpr size_t gcj02Count = sizeof(gcj02Options) / sizeof(gcj02Options[0]);
+    static std::array<const char *, gcj02Count> gcj02Labels{};
+
+    auto bannerOptions = createStaticBannerOptions("GCJ-02", gcj02Options, gcj02Labels,
+                                                   [](const PositionMenuOption &option, int) -> void {
+                                                       if (option.action == OptionsAction::Back) {
+                                                           menuQueue = PositionBaseMenu;
+                                                           screen->runNow();
+                                                           return;
+                                                       }
+
+                                                       if (!option.hasValue)
+                                                           return;
+
+                                                       const bool on = option.value != 0;
+                                                       if (gcj02::enabled() == on)
+                                                           return;
+
+                                                       gcj02::setEnabled(on);
+                                                       screen->showSimpleBanner(on ? "GCJ-02: On" : "GCJ-02: Off", 2000);
+                                                   });
+
+    bannerOptions.InitialSelected = gcj02::enabled() ? 1 : 2;
     screen->showOverlayBanner(bannerOptions);
 }
 
@@ -3233,6 +3258,9 @@ void menuHandler::handleMenuSwitch(OLEDDisplay *display)
         GPSPositionBroadcastMenu();
         break;
 #endif
+    case Gcj02Menu:
+        GCJ02Menu();
+        break;
     case CompassPointNorthMenu:
         compassNorthMenu();
         break;
