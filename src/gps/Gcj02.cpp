@@ -31,6 +31,10 @@ bool readFlagFromDisk()
 
 void writeFlagToDisk(bool on)
 {
+    // Adafruit_LittleFS opens FILE_O_WRITE at the end of the file, so writing the
+    // flag in place would append and leave the first byte (the one we read back)
+    // stale. Recreate the file so it always holds exactly one byte.
+    FSCom.remove(kFlagFile);
     auto f = FSCom.open(kFlagFile, FILE_O_WRITE);
     if (!f) {
         LOG_WARN("GCJ-02: unable to open %s for write", kFlagFile);
@@ -81,6 +85,20 @@ bool shiftFixedPoint(int32_t &latE7, int32_t &lonE7)
     return true;
 }
 
+bool unshiftFixedPoint(int32_t &latE7, int32_t &lonE7)
+{
+    double lat = latE7 * 1e-7;
+    double lon = lonE7 * 1e-7;
+    double shiftedLat = lat;
+    double shiftedLon = lon;
+    if (!gcj02::gcj02ToWgs84(lat, lon, shiftedLat, shiftedLon))
+        return false;
+
+    latE7 = static_cast<int32_t>(llround(shiftedLat * 1e7));
+    lonE7 = static_cast<int32_t>(llround(shiftedLon * 1e7));
+    return true;
+}
+
 bool shiftPosition(meshtastic_Position &pos)
 {
     if (!pos.has_latitude_i || !pos.has_longitude_i)
@@ -103,6 +121,22 @@ bool shiftWaypoint(meshtastic_Waypoint &wp)
             moved |= shiftFixedPoint(box.latitude_south_i, box.longitude_west_i);
         if (box.latitude_north_i != 0 || box.longitude_east_i != 0)
             moved |= shiftFixedPoint(box.latitude_north_i, box.longitude_east_i);
+    }
+    return moved;
+}
+
+bool unshiftWaypoint(meshtastic_Waypoint &wp)
+{
+    bool moved = false;
+    if (wp.has_latitude_i && wp.has_longitude_i && (wp.latitude_i != 0 || wp.longitude_i != 0))
+        moved |= unshiftFixedPoint(wp.latitude_i, wp.longitude_i);
+
+    if (wp.has_bounding_box) {
+        auto &box = wp.bounding_box;
+        if (box.latitude_south_i != 0 || box.longitude_west_i != 0)
+            moved |= unshiftFixedPoint(box.latitude_south_i, box.longitude_west_i);
+        if (box.latitude_north_i != 0 || box.longitude_east_i != 0)
+            moved |= unshiftFixedPoint(box.latitude_north_i, box.longitude_east_i);
     }
     return moved;
 }
@@ -145,6 +179,30 @@ bool wgs84ToGcj02(double lat, double lon, double &outLat, double &outLon)
     return true;
 }
 
+bool gcj02ToWgs84(double lat, double lon, double &outLat, double &outLon)
+{
+    outLat = lat;
+    outLon = lon;
+    if (!inChina(lat, lon))
+        return false;
+
+    // A few fixed-point iterations are enough for centimetre accuracy.
+    double wgsLat = lat;
+    double wgsLon = lon;
+    for (int i = 0; i < 5; ++i) {
+        double forwardLat = wgsLat;
+        double forwardLon = wgsLon;
+        if (!wgs84ToGcj02(wgsLat, wgsLon, forwardLat, forwardLon))
+            break;
+        wgsLat += lat - forwardLat;
+        wgsLon += lon - forwardLon;
+    }
+
+    outLat = wgsLat;
+    outLon = wgsLon;
+    return true;
+}
+
 void transformPacketForPhone(meshtastic_MeshPacket &pkt)
 {
     if (!enabled() || pkt.which_payload_variant != meshtastic_MeshPacket_decoded_tag)
@@ -179,5 +237,27 @@ void transformNodeInfo(meshtastic_NodeInfo &info)
     if (!enabled() || !info.has_position)
         return;
     shiftPosition(info.position);
+}
+
+void transformPacketFromPhone(meshtastic_MeshPacket &pkt)
+{
+    if (!enabled() || pkt.which_payload_variant != meshtastic_MeshPacket_decoded_tag)
+        return;
+
+    // Only waypoints come from the map frame. Phone Position packets originate
+    // from CoreLocation/Android LocationManager and are already WGS-84.
+    auto &data = pkt.decoded;
+    if (data.portnum != meshtastic_PortNum_WAYPOINT_APP)
+        return;
+
+    meshtastic_Waypoint wp = meshtastic_Waypoint_init_zero;
+    if (!pb_decode_from_bytes(data.payload.bytes, data.payload.size, &meshtastic_Waypoint_msg, &wp))
+        return;
+    if (!unshiftWaypoint(wp))
+        return;
+
+    pb_ostream_t stream = pb_ostream_from_buffer(data.payload.bytes, sizeof(data.payload.bytes));
+    if (pb_encode(&stream, &meshtastic_Waypoint_msg, &wp))
+        data.payload.size = stream.bytes_written;
 }
 } // namespace gcj02
