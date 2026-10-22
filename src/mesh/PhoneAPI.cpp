@@ -24,6 +24,7 @@
 #include "TypeConversions.h"
 #include "UptimeClock.h"
 #include "concurrency/LockGuard.h"
+#include "gps/Gcj02.h"
 #include "main.h"
 #include "modules/NodeInfoModule.h"
 #include "xmodem.h"
@@ -626,6 +627,7 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
             }
             fromRadioScratch.which_payload_variant = meshtastic_FromRadio_node_info_tag;
             fromRadioScratch.node_info = info;
+            gcj02::transformNodeInfo(fromRadioScratch.node_info);
             // Should allow us to resume sending NodeInfo in STATE_SEND_OTHER_NODEINFOS
             {
                 concurrency::LockGuard guard(&nodeInfoMutex);
@@ -987,6 +989,7 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
 
             fromRadioScratch.which_payload_variant = meshtastic_FromRadio_node_info_tag;
             fromRadioScratch.node_info = infoToSend;
+            gcj02::transformNodeInfo(fromRadioScratch.node_info);
             prefetchNodeInfos();
         } else {
             LOG_DEBUG("Done sending %d of %d nodeinfos millis=%u", readIndex, nodeDB->getNumMeshNodes(), millis());
@@ -1081,6 +1084,7 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
                 // Encapsulate as a FromRadio packet
                 fromRadioScratch.which_payload_variant = meshtastic_FromRadio_packet_tag;
                 fromRadioScratch.packet = *packetForPhone;
+                gcj02::transformPacketForPhone(fromRadioScratch.packet);
                 releasePhonePacket();
             }
         } else if (replayPending()) {
@@ -1092,6 +1096,7 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
                 printPacket("replay packet to phone", &replayPkt);
                 fromRadioScratch.which_payload_variant = meshtastic_FromRadio_packet_tag;
                 fromRadioScratch.packet = replayPkt;
+                gcj02::transformPacketForPhone(fromRadioScratch.packet);
             }
         }
         break;
@@ -1910,6 +1915,7 @@ bool PhoneAPI::handleToRadioPacket(meshtastic_MeshPacket &p)
                   meshtastic_PortNum_WAYPOINT_APP, meshtastic_PortNum_ALERT_APP, meshtastic_PortNum_TELEMETRY_APP,
                   meshtastic_PortNum_TEXT_MESSAGE_APP))
         lastPortNumToRadio[p.decoded.portnum] = millis();
+    gcj02::transformPacketFromPhone(p);
     service->handleToRadio(p);
     return true;
 }
