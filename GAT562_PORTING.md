@@ -28,6 +28,10 @@
 | `dfd8fbc3` / `547a0e29` | 环境页气压高度 |
 | `f67ba2ca` / `c7590e89` | QNH 海压高度（GPS 校准） |
 | `880af617` / `7b2f003b` | 侧键熄屏、移除街机小游戏 |
+| `f6823411` / `f6d339cc` | GCJ-02 坐标转换（出口）与中文词条 |
+| `078ff8b5` / `40e0acdc` | App 航点反向转换（入口） |
+| `41dbb5cd` / `539ef904` | 开关持久化修复 |
+| `95865612` / `9db09d3d` | GCJ-02 开关改为二级菜单 |
 
 ---
 
@@ -162,6 +166,27 @@ L = 0.0065 K/m
 - 用 `GAT562_CN_UI` 宏隔离，EN 环境不编译词表
 - 字库：CN 用 `gat562_utf8_10x10.h`（CJK 6448 字），EN 用 `gat562_ascii_only_10x10.h`
 
+### 4.5 GCJ-02 坐标转换
+
+目标：交给手机 App 的坐标显示在国内底图上不偏移，同时不污染 LoRa 空口。
+
+- 只改 `PhoneAPI` 边界：出口（本机/他机 NodeInfo、实时包、缓存重发包）转 GCJ-02，入口只对 `WAYPOINT_APP` 反算回 WGS-84
+- `POSITION_APP` 入口不转：系统定位服务本身给的就是 WGS-84；iOS 地图标点给的是 GCJ-02
+- LoRa 广播、屏幕显示、内部存储始终 WGS-84
+- 开关默认关闭，关闭时与官方固件行为一致
+
+开关持久化（nRF52 特有，务必注意）：
+
+- 标志写在 `/prefs/gcj02`，单字节
+- `Adafruit_LittleFS` 的 `FILE_O_WRITE` 会把文件指针移到末尾，直接写会变成**追加**，重启后读到的是旧首字节
+- 正确做法：写入前先 `FSCom.remove(path)`，再打开写 1 字节
+
+菜单交互：
+
+- 与 GPS 开关保持一致，改为二级菜单 `GCJ-02 → Back / 开 / 关`，进入时预选当前状态
+- 不再采用「点一下即翻转」，避免误触
+
+
 ---
 
 ## 5. 构建与刷机
@@ -192,22 +217,25 @@ python -m esptool --chip esp32c3 -p COMx -b 460800 write_flash 0x0 firmware-saku
 
 ## 6. 升级后的回归清单
 
-1. 两个环境编译通过，确认 Flash 余量（GAT562 上限 796 KB，CN 约 81%）
+1. 两个环境编译通过，确认 Flash 余量（上限 815,104）：EN 656,060（80.5%）/ CN 666,036（81.7%），控制线 83.5%
 2. 串口启动日志：版本号、`SX1268 init success`、区域与频率
 3. BLE 配对码页、设备名
 4. GPS 定位、NMEA 授时、位置页
 5. 环境页：温度 / 湿度 / 气压、`海压高度`（等待 GPS 锁定后再观察）
 6. 摇杆四向与按下；侧键短按熄屏、任意键唤醒；长按打开菜单
-7. 汉化抽查：菜单、通知横幅、LoRa / 位置 / 环境页、蓝牙配对页
-8. 中文输入：拼音候选、上下翻页、确认与删除
-9. LoRa 收发、节点列表
-10. ESP32 设备：WiFi 连接、Web 与 API 端口
+7. GCJ-02：位置页二级菜单可开 / 关；开启后 App 坐标偏移约 400 米；断电重启后状态保持；LoRa 空口坐标不变
+8. 汉化抽查：菜单、通知横幅、LoRa / 位置 / 环境页、蓝牙配对页
+9. 中文输入：拼音候选、上下翻页、确认与删除
+10. LoRa 收发、节点列表
+11. ESP32 设备：WiFi 连接、Web 与 API 端口
 
 ---
 
 ## 7. 常见问题
 
-- **PlatformIO 双核心**：外层 6.1.19 与内层 6.2.0 共存会导致 `SCons.Tool.FortranCommon` 缺失，需要手工补齐 `tool-scons`
+- **PlatformIO 与平台抢 `tool-scons`**：PlatformIO 6.2 核心要求 `tool-scons 4.11.1`（缺 `SCons.Tool.FortranCommon`），pioarduino 平台要求 `4.8.1`，每轮构建互相覆盖并最终用错版本。修复：把核心 `dependencies.py` 与平台 `platform.json` 的 `tool-scons` 统一指向 `scons-local-4.8.1`，并保证包根目录存在 `scons.py`
+- **`platforms.lock` 写入受限**：构建环境若限制写 `~/.platformio`，`pio run` 启动即失败，需要放开该目录读写
+- **写 flag 文件要重建**：nRF52 的 `Adafruit_LittleFS` 以追加方式打开，单字节标志必须先 `remove` 再写，否则永远读到旧值
 - **ESP32 依赖下载中断**：使用 `curl -C -` 续传并手工解压，`.piopm` 必须为无 BOM 的 UTF-8
 - **串口被占用**：上一个读取脚本未退出会报 `Access to the port is denied`，先确认无残留进程
 - **枚举或宏改名**：编译报“未声明”时先检查 `src/mesh/generated` 与 `configuration.h`
@@ -224,4 +252,9 @@ python -m esptool --chip esp32c3 -p COMx -b 460800 write_flash 0x0 firmware-saku
 - Release 附件：
   - `meshtastic_<设备>_<版本>.zip`：BLE / MTools OTA 包
   - `meshtastic_<设备>_<版本>.uf2`：USB 拖拽刷机包
+  - `meshtastic_<设备>-cn_<版本>.zip/.uf2`：中文版
+  - `source-<设备>_<版本>.zip`：分支源码快照（`git archive`）
+  - `SHA256SUMS.txt`：全部附件校验值
+- 标签需指向最新提交，否则 GitHub 自动生成的 `Source code` 会是旧代码
+- 发布仓库保持线性：用 `git commit-tree <本地tree> -p <远端tip>` 构造提交后推送，不做强推
 - 提交作者：`splendidmata <28244088+splendidmata@users.noreply.github.com>`
