@@ -1915,6 +1915,7 @@ bool PhoneAPI::handleToRadioPacket(meshtastic_MeshPacket &p)
                   meshtastic_PortNum_WAYPOINT_APP, meshtastic_PortNum_ALERT_APP, meshtastic_PortNum_TELEMETRY_APP,
                   meshtastic_PortNum_TEXT_MESSAGE_APP))
         lastPortNumToRadio[p.decoded.portnum] = millis();
+    gcj02::transformPacketFromPhone(p);
     service->handleToRadio(p);
     return true;
 }
